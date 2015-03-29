@@ -22,7 +22,22 @@ class App
     return stdin(name: _) if String === _ 
     App.new @id, @worker, @options.merge(stdin: _)
   end
+  
+  def service_auth!(issuer, p12_file)
+    key = Google::APIClient::KeyUtils.load_from_pkcs12(p12_file, 'notasecret')
+    client.authorization = Signet::OAuth2::Client.new(
+      :token_credential_uri => 'https://accounts.google.com/o/oauth2/token',
+      :audience => 'https://accounts.google.com/o/oauth2/token',
+      :scope => 'https://www.googleapis.com/auth/prediction',
+      :issuer => issuer,
+      :signing_key => key)
+    client.authorization.fetch_access_token!
+    
+    api = client.discovered_api(TASKQUEUE_API, TASKQUEUE_API_VERSION)
 
+    return client, api
+  end
+  
   def auth!(secrets_file=nil, store_file=nil)
     if store_file.nil? || (cred_store = credentials_store(store_file)).authorization.nil?
       client_secrets = Google::APIClient::ClientSecrets.load(secrets_file)

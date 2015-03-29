@@ -2,3 +2,4 @@ scratch
 config/secrets
 .gs
 *.swp
+log
