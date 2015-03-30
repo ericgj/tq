@@ -52,10 +52,27 @@ module TQ
       new_task(results.data)
     end
       
+    def push!(payload, tag=nil)
+      opts = @options
+      body = { :queueName => opts[:name],
+               :payloadBase64 => encode(payload)
+             }
+      body[:tag] = tag if tag
+      
+      results = client.execute!( 
+                  :api_method => api.tasks.insert,
+                  :parameters => { :project   => opts[:project],
+                                   :taskqueue => opts[:name]
+                                 },
+                  :body_object => body
+                )
+      new_task(results.data)
+    end
+
     # note: you must have previously leased given task
     def finish!(task)
       opts = @options
-      client.execute!(  :api_method => api.tasks.delete,
+      client.execute!( :api_method => api.tasks.delete,
                        :parameters => { :project   => opts[:project],
                                         :taskqueue => opts[:name],
                                         :task      => task.id

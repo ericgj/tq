@@ -1,3 +1,7 @@
+# Functional tests of TQ::App#run!
+# Please note that these require a deployed GAE app 's~ert-sas-queue-test' 
+#   with two queues: 'test' and 'log'.
+
 require 'fileutils'
 require_relative './helper'
 require_relative '../lib/app'
@@ -113,6 +117,7 @@ describe TQ::App do
       @logger = setup_logger!('run')
       sleep TASKQUEUE_LEASE_SECS + 1  # to wait for lease expiry from previous test
       clear_queue!('s~ert-sas-queue-test','test')
+      clear_queue!('s~ert-sas-queue-test','log')
     end
 
     it "should setup clearing the queue" do
@@ -207,6 +212,46 @@ describe TQ::App do
       assert (n = actual_tasks.first['retry_count']) > 0,
          "Expected >0 lease retry count, #{n < 2 ? 'was' : 'were'} #{n}"
 
+    end
+
+    it 'should be able to push to queue from within worker' do
+      
+      # setup
+      expected_tasks = [
+        { 'What is your name?' => 'Sir Lancelot', 'What is your quest?' => 'To seek the holy grail', 'What is your favorite color?' => 'blue' }
+      ]
+      push_tasks!('s~ert-sas-queue-test','test', expected_tasks)
+ 
+      class RelayWorker
+        def initialize(*args)
+          @stdin = args.first; @stdout = args[1]
+        end
+
+        def call(task)
+          @stdout.push!(task.payload)
+          @stdin.finish!(task)
+        end
+      end
+
+      # execution
+      app = TQ::App.new('test_app/0.0.0', RelayWorker)
+               .project('s~ert-sas-queue-test')
+               .stdin({ name: 'test', num_tasks: 1, lease_secs: TASKQUEUE_LEASE_SECS })
+               .stdout({ name: 'log' })
+      app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
+    
+      sleep TASKQUEUE_LEASE_SECS + 1
+      actual_output_tasks = clear_queue!('s~ert-sas-queue-test','log')
+      actual_input_tasks = clear_queue!('s~ert-sas-queue-test','test')
+      
+      # assertion
+
+      assert_equal 0, b = actual_input_tasks.length,
+        "Expected no tasks on input queue, #{b < 2 ? 'was' : 'were'} #{b}"
+
+      assert_equal a = expected_tasks.length, b = actual_output_tasks.length, 
+        "Expected #{a} #{a == 1 ? 'task' : 'tasks'} on output queue, #{b < 2 ? 'was' : 'were'} #{b}"
+      
     end
 
     it 'should extend a task lease if extended before lease expires' do
