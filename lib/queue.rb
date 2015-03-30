@@ -25,7 +25,7 @@ module TQ
 
     def lease!(opts={})
       opts = @options.merge(opts)
-      results = client.execute(  
+      results = client.execute!(  
                   :api_method => api.tasks.lease,
                   :parameters => { :leaseSecs => opts[:lease_secs], 
                                    :project => opts[:project], 
@@ -34,21 +34,46 @@ module TQ
                                  }
                 )
       items = (results.data && results.data['items']) || []
-      items.map {|t| Task.new(t['id'], decode(t.payloadBase64), t) }    
+      items.map {|t| new_task(t) } 
     end
     
+    # note: does not currently work; filed bug report https://code.google.com/p/googleappengine/issues/detail?id=11838
+    def extend!(task, secs=nil)
+      secs = secs.nil? ? @options[:lease_secs] : secs
+      opts = @options
+      results = client.execute!(
+                  :api_method => api.tasks.update,
+                  :parameters => { :newLeaseSeconds => secs, 
+                                   :project => opts[:project], 
+                                   :taskqueue => opts[:name], 
+                                   :task => task.id
+                                 }
+                )
+      new_task(results.data)
+    end
+      
     # note: you must have previously leased given task
     def finish!(task)
-      client.execute(  :api_method => api.tasks.delete,
-                       :parameters => { :project   => @options[:project],
-                                        :taskqueue => @options[:name],
+      opts = @options
+      client.execute!(  :api_method => api.tasks.delete,
+                       :parameters => { :project   => opts[:project],
+                                        :taskqueue => opts[:name],
                                         :task      => task.id
                                       }
                     )
+      return
     end
     
     private
     
+    def new_task(t)
+      Task.new(t['id'], timestamp_time(t['leaseTimestamp']), decode(t.payloadBase64), t) 
+    end
+
+    def timestamp_time(t)
+      Time.at( t / 1000000 )
+    end
+
     def encode(obj)
       Base64.urlsafe_encode64(JSON.dump(obj))
     end
@@ -59,8 +84,30 @@ module TQ
     
   end
 
-  class Task < Struct.new(:id, :payload, :raw)
+  class Task < Struct.new(:id, :expires, :payload, :raw)
     
+    def initialize(*args)
+      super
+      @clock = Time
+    end
+
+    def clock!(_)
+      @clock = _; return self
+    end
+
+    def reset_clock!
+      @clock = Time; return self
+    end
+
+    def lease_remaining
+      self.expires - @clock.now
+    end
+
+    def lease_expired?
+      self.expires < @clock.now
+    end
+
   end
   
 end
+

@@ -209,6 +209,40 @@ describe TQ::App do
 
     end
 
+    it 'should extend a task lease if extended before lease expires' do
+      
+      refute true, "Extending task leases does not currently work"
+
+      # setup
+      expected_tasks = [
+        { 'What is your name?' => 'Sir Lancelot', 'What is your quest?' => 'To seek the holy grail', 'What is your favorite color?' => 'blue' }
+      ]
+      push_tasks!('s~ert-sas-queue-test','test', expected_tasks)
+ 
+      class ExtendWorker
+        def initialize(*args)
+          @stdin = args.first
+        end
+
+        def call(task)
+          $stderr.puts "ExtendWorker - task #{ task.raw.inspect }"
+          ttl = task.lease_remaining
+          # sleep( ttl - 0.5 )
+          task = @stdin.extend!(task)
+          ttl2 = task.lease_remaining
+          $stderr.puts "ExtendWorker - ttl before extend: #{ttl}"
+          $stderr.puts "ExtendWorker - ttl after extend: #{ttl2}"
+        end
+      end
+
+      # execution
+      app = TQ::App.new('test_app/0.0.0', ExtendWorker)
+               .project('s~ert-sas-queue-test')
+               .stdin({ name: 'test', num_tasks: 1, lease_secs: TASKQUEUE_LEASE_SECS + 2 })
+      app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
+    
+    end
+
   end
 
 end
