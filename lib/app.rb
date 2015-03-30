@@ -12,7 +12,7 @@ TASKQUEUE_API_SCOPES = ['https://www.googleapis.com/auth/taskqueue']
 
 module TQ
 
-  DEFAULT_OPTIONS = { :concurrency => 2 }
+  DEFAULT_OPTIONS = { concurrency: 2, env: {} }
 
   class App
     
@@ -27,6 +27,10 @@ module TQ
 
     def project(_)
       options(project: _)
+    end
+      
+    def env(_)
+      options(env: _)
     end
       
     def stdin(_)
@@ -117,7 +121,7 @@ module TQ
     def _run(qin, qout, qerr)
       tasks = qin.lease!
       Parallel.each(tasks, :in_threads => @options[:concurrency]) do |task| 
-        @worker.new(qin, qout, qerr).call(task)
+        @worker.new(qin, qout, qerr, @options[:env]).call(task)
       end
     end
 
