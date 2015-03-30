@@ -229,7 +229,7 @@ describe TQ::App do
 
         def call(task)
           @stdout.push!(task.payload)
-          @stdin.finish!(task)
+          task.finish!
         end
       end
 

@@ -84,7 +84,7 @@ module TQ
     private
     
     def new_task(t)
-      Task.new(t['id'], timestamp_time(t['leaseTimestamp']), decode(t.payloadBase64), t) 
+      Task.new(self, t['id'], timestamp_time(t['leaseTimestamp']), decode(t.payloadBase64), t) 
     end
 
     def timestamp_time(t)
@@ -101,11 +101,19 @@ module TQ
     
   end
 
-  class Task < Struct.new(:id, :expires, :payload, :raw)
+  class Task < Struct.new(:queue, :id, :expires, :payload, :raw)
     
     def initialize(*args)
       super
       @clock = Time
+    end
+
+    def finish!
+      self.queue.finish!(self)
+    end
+
+    def extend!(secs=nil)
+      self.queue.extend!(self, secs)
     end
 
     def clock!(_)
