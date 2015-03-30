@@ -1,2 +1,3 @@
 google-api-client -v 0.8.4
-minitest -v 5.5.1 
+minitest -v 5.5.1
+parallel -v 1.4.1

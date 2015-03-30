@@ -2,6 +2,7 @@ require 'google/api_client'
 require 'google/api_client/client_secrets'
 require 'google/api_client/auth/file_storage'
 require 'google/api_client/auth/installed_app'
+require 'parallel'
 
 require_relative 'queue'
 
@@ -11,11 +12,13 @@ TASKQUEUE_API_SCOPES = ['https://www.googleapis.com/auth/taskqueue']
 
 module TQ
 
+  DEFAULT_OPTIONS = { :concurrency => 2 }
+
   class App
     
     def initialize(id, worker, options={})
       @id = id; @worker = worker  
-      @options = options
+      @options = DEFAULT_OPTIONS.merge(options)
     end
 
     def options(_)
@@ -113,7 +116,7 @@ module TQ
     # TODO raise if not qin
     def _run(qin, qout, qerr)
       tasks = qin.lease!
-      tasks.each do |task| 
+      Parallel.each(tasks, :in_threads => @options[:concurrency]) do |task| 
         @worker.new(qin, qout, qerr).call(task)
       end
     end
