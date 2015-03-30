@@ -31,18 +31,20 @@ module TQ
       options(stdin: _)
     end
     
-    def run!(secrets_file=nil, store_file=nil)
-      q = TQ::Queue.new( *(auth!(secrets_file, store_file)) ).project(@options[:project])
-      qin  = @options[:stdin]  && q.options(@options[:stdin])
-      qout = @options[:stdout] && q.options(@options[:stdout])
-      qerr = @options[:stderr] && q.options(@options[:stderr])
-      
-      tasks = qin.lease!
-
-      tasks.each do |task| 
-        @worker.new(qin, qout, qerr).call(task)
-      end
+    def stdout(_)
+      return stdout(name: _) if String === _ 
+      options(stdout: _)
     end
+    
+    def stderr(_)
+      return stderr(name: _) if String === _ 
+      options(stderr: _)
+    end
+    
+    def run!(secrets_file=nil, store_file=nil)
+      _run *(_queues( TQ::Queue.new( *(auth!(secrets_file, store_file)) ).project(@options[:project]) ) )
+    end
+
 
     def service_auth!(issuer, p12_file)
       key = Google::APIClient::KeyUtils.load_from_pkcs12(p12_file, 'notasecret')
@@ -100,6 +102,22 @@ module TQ
       Google::APIClient::FileStorage.new(file)
     end
     
+    def _queues(q)
+      qin  = @options[:stdin]  && q.options(@options[:stdin])
+      qout = @options[:stdout] && q.options(@options[:stdout])
+      qerr = @options[:stderr] && q.options(@options[:stderr])
+      return qin, qout, qerr
+    end 
+   
+    # TODO handle uncaught worker errors by qerr.push!(err) and qin.finish!(task)
+    # TODO raise if not qin
+    def _run(qin, qout, qerr)
+      tasks = qin.lease!
+      tasks.each do |task| 
+        @worker.new(qin, qout, qerr).call(task)
+      end
+    end
+
   end
 
 end
