@@ -10,7 +10,6 @@ def setup_test_logger!
 end
 
 def assert_logged( exps, acts )
-  $stderr.puts acts.inspect
   errs = []
   unless (a = exps.length) == (b = acts.length)
     errs.push( "Expected #{a} messages, #{b < 2 ? 'were' : 'was'} #{b}" )
@@ -53,6 +52,10 @@ class LoggerTests < Minitest::Spec
     queue_helper(project,queue).clear!
   end
 
+ 
+  # Note: ideally these tests would also verify the (file) logger output as well
+  # and the timestamps, mocking the clock, etc. But that's a mess of work, so for now
+  # you should just eyeball it in the $stderr output.
 
   def setup
     clear_queue!(TEST_PROJECT, TEST_QUEUE)
@@ -74,10 +77,35 @@ class LoggerTests < Minitest::Spec
 
     send_messages_to!(subject, expected_messages)
    
+    actual_messages = queue_helper(TEST_PROJECT, TEST_QUEUE).all_payloads! 
+    $stderr.puts actual_messages.inspect
+
     assert_logged( expected_messages.select { |msg| msg[:level] >= ::Logger::WARN }, 
-                   queue_helper(TEST_PROJECT, TEST_QUEUE).all_payloads! 
+                   actual_messages
                  )
   end
+
+  it 'after setting level to debug, logger should log to queue at debug level' do
+    subject = TQ::Logger.new(@queue)
+    subject.level = ::Logger::DEBUG
+
+    expected_messages = [
+      { method: :debug, level: ::Logger::DEBUG, message: 'debug message', progname: 'prog1', context: { key: 1 } },
+      { method: :info,  level: ::Logger::INFO,  message: 'info message',  progname: 'prog2', context: { key: 2 } },
+      { method: :warn,  level: ::Logger::WARN,  message: 'warn message',  progname: 'prog3', context: { key: 3 } },
+      { method: :error,  level: ::Logger::ERROR,  message: 'error message',  progname: 'prog4', context: { key: 4 } }
+    ]
+
+    send_messages_to!(subject, expected_messages)
+   
+    actual_messages = queue_helper(TEST_PROJECT, TEST_QUEUE).all_payloads! 
+    $stderr.puts actual_messages.inspect
+
+    assert_logged( expected_messages.select { |msg| msg[:level] >= ::Logger::DEBUG }, 
+                   actual_messages
+                 )
+  end
+
 
 
 end

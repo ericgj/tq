@@ -28,7 +28,7 @@ module TQ
 
     def add(severity, message=nil, progname=nil, context={})
       t = Time.now
-      @log.add(severity, message, progname)  if @log
+      @log.add(severity, message, progname)
       @queue.push!( 
         queue_message(t, severity, message, progname, context), 
         severity 
