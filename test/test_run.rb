@@ -2,119 +2,47 @@
 # Please note that these require a deployed GAE app 's~ert-sas-queue-test' 
 #   with two queues: 'test' and 'log'.
 
-require 'fileutils'
 require_relative './helper'
 require_relative '../lib/app'
 
-def setup_logger!(name)
-  TestUtils.setup_logger(name)
+def setup_test_logger!
+  TestUtils.setup_logger( File.basename(__FILE__,'.rb') )
 end
 
-def delete_credentials!
-  FileUtils.rm_f(CREDENTIALS_FILE)
-end
+class AppRunTests < Minitest::Spec
 
-def tasks_on_queue(project,queue)
-  QueueHelper.new(project,queue).list
-end
+  # for installed app auth
+  CLIENT_SECRETS_FILE = File.expand_path('../config/secrets/test/client_secrets.json', File.dirname(__FILE__))
+  CREDENTIALS_FILE    = File.expand_path("../config/secrets/test/#{File.basename(__FILE__,'.rb')}-oauth2.json", File.dirname(__FILE__))
 
-def clear_queue!(project,queue)
-  QueueHelper.new(project,queue).clear!
-end
+  # for service account auth -- not quite working
+  SERVICE_ISSUER_FILE = File.expand_path('../config/secrets/test/issuer', File.dirname(__FILE__))
+  SERVICE_P12_FILE    = File.expand_path('../config/secrets/test/client.p12', File.dirname(__FILE__))
 
-def push_tasks!(project,queue,tasks)
-  q = QueueHelper.new(project,queue)
-  tasks.each do |task| q.push!(task) end
-end
+  # task queue constants
+  TASKQUEUE_LEASE_SECS = 2
 
-class QueueHelper
-
-  attr_reader :project, :queue
-  def initialize(project,queue)
-    @project, @queue = project, queue
+  def queue_helper(project,queue)
+    TestUtils::QueueHelper.new(project,queue).auth_files(CLIENT_SECRETS_FILE, CREDENTIALS_FILE)
   end
 
-  def authorized_client
-    # @authorized_client ||= TQ::App.new('test_app',nil).service_auth!(File.read(SERVICE_ISSUER_FILE).chomp, SERVICE_P12_FILE)
-    @authorized_client ||= TQ::App.new('test_app',nil).auth!(CLIENT_SECRETS_FILE, CREDENTIALS_FILE)
-  end
-  
-  # Note: inaccurate, don't use
-  def list()
-    client, api = authorized_client
-    results = client.execute!( :api_method => api.tasks.list,
-                               :parameters => { :project => project, :taskqueue => queue }
-              )
-    items = results.data['items'] || []
+  def tasks_on_queue(project,queue)
+    queue_helper(project,queue).list
   end
 
-  def push!(payload)
-    client, api = authorized_client
-    client.execute!( :api_method => api.tasks.insert,
-                     :parameters => { :project => project, :taskqueue => queue },
-                     :body_object => { 
-                       'queueName' => queue, 
-                       'payloadBase64' => encode(payload)
-                     }
-    )
+  def clear_queue!(project,queue)
+    queue_helper(project,queue).clear!
   end
 
-  def pop!(n=1)
-    client, api = authorized_client
-    results = client.execute!( :api_method => api.tasks.lease,
-                               :parameters => { :project => project, :taskqueue => queue, 
-                                                :leaseSecs => 60, :numTasks => n
-                               }
-              )
-    items = results.data['items'] || []
-    items.each do |item|
-      client.execute!( :api_method => api.tasks.delete,
-                       :parameters => { :project => project, :taskqueue => queue, :task => item['id'] }
-      )
-    end
-    return items
+  def push_tasks!(project,queue,tasks)
+    q = queue_helper(project,queue)
+    tasks.each do |task| q.push!(task) end
   end
 
-  # Note: inaccurate, don't use
-  def length
-    list.length
-  end
-
-  def clear!
-    client, api = authorized_client
-    done = false
-    all = []
-    while !done do
-      batch = pop!(10)
-      done = batch.empty? || batch.length < 10
-      all = all + batch
-    end
-    all
-  end
-
-  def encode(obj)
-    Base64.urlsafe_encode64(JSON.dump(obj))
-  end
-
-end
-
-# for installed app auth
-CLIENT_SECRETS_FILE = File.expand_path('../config/secrets/test/client_secrets.json', File.dirname(__FILE__))
-CREDENTIALS_FILE    = File.expand_path("../config/secrets/test/#{File.basename(__FILE__,'.rb')}-oauth2.json", File.dirname(__FILE__))
-
-# for service account auth -- not quite working
-SERVICE_ISSUER_FILE = File.expand_path('../config/secrets/test/issuer', File.dirname(__FILE__))
-SERVICE_P12_FILE    = File.expand_path('../config/secrets/test/client.p12', File.dirname(__FILE__))
-
-# task queue constants
-TASKQUEUE_LEASE_SECS = 2
-
-describe TQ::App do
 
   describe "run!" do
   
     before do
-      @logger = setup_logger!('run')
       sleep TASKQUEUE_LEASE_SECS + 1  # to wait for lease expiry from previous test
       clear_queue!('s~ert-sas-queue-test','test')
       clear_queue!('s~ert-sas-queue-test','log')
@@ -292,3 +220,4 @@ describe TQ::App do
 
 end
 
+setup_test_logger!
