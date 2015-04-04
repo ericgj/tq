@@ -1,3 +1,9 @@
+# Functional tests of TQ::Logger
+# Please note that these require a deployed GAE app
+#   with two queues: 'test' and 'log'.
+# The GAE project_id is defined in ../config/secrets/test/project_id,
+#   along with other secrets files (see below).
+
 require 'logger'
 
 require_relative './helper'
@@ -38,11 +44,21 @@ end
 class LoggerTests < Minitest::Spec
 
   # for installed app auth
-  CLIENT_SECRETS_FILE = File.expand_path('../config/secrets/test/client_secrets.json', File.dirname(__FILE__))
-  CREDENTIALS_FILE    = File.expand_path("../config/secrets/test/#{File.basename(__FILE__,'.rb')}-oauth2.json", File.dirname(__FILE__))
+  CLIENT_SECRETS_FILE = File.expand_path(
+    '../config/secrets/test/client_secrets.json', File.dirname(__FILE__)
+  )
+  CREDENTIALS_FILE    = File.expand_path(
+    "../config/secrets/test/#{File.basename(__FILE__,'.rb')}-oauth2.json", 
+    File.dirname(__FILE__)
+  )
 
-  TEST_PROJECT = 's~ert-sas-queue-test'
-  TEST_QUEUE = 'log'
+  # task queue constants
+  TASKQUEUE_PROJECT_ID = File.read(
+    File.expand_path('../config/secrets/test/project_id', File.dirname(__FILE__))
+  ).chomp
+  
+  TASKQUEUE_TEST_QUEUE = 'log'
+
 
   def queue_helper(project,queue)
     TestUtils::QueueHelper.new(project,queue).auth_files(CLIENT_SECRETS_FILE, CREDENTIALS_FILE)
@@ -58,11 +74,11 @@ class LoggerTests < Minitest::Spec
   # you should just eyeball it in the $stderr output.
 
   def setup
-    clear_queue!(TEST_PROJECT, TEST_QUEUE)
+    clear_queue!(TASKQUEUE_PROJECT_ID, TASKQUEUE_TEST_QUEUE)
     
     app = TQ::App.new('test_app/0.0.0', nil)
     @queue = TQ::Queue.new( *app.auth!(CLIENT_SECRETS_FILE, CREDENTIALS_FILE) )
-                      .options( project: TEST_PROJECT, name: TEST_QUEUE )
+                      .options( project: TASKQUEUE_PROJECT_ID, name: TASKQUEUE_TEST_QUEUE )
   end
 
   it 'default logger should log to queue at warn level' do
@@ -77,7 +93,7 @@ class LoggerTests < Minitest::Spec
 
     send_messages_to!(subject, expected_messages)
    
-    actual_messages = queue_helper(TEST_PROJECT, TEST_QUEUE).all_payloads! 
+    actual_messages = queue_helper(TASKQUEUE_PROJECT_ID, TASKQUEUE_TEST_QUEUE).all_payloads! 
     $stderr.puts actual_messages.inspect
 
     assert_logged( expected_messages.select { |msg| msg[:level] >= ::Logger::WARN }, 
@@ -98,7 +114,7 @@ class LoggerTests < Minitest::Spec
 
     send_messages_to!(subject, expected_messages)
    
-    actual_messages = queue_helper(TEST_PROJECT, TEST_QUEUE).all_payloads! 
+    actual_messages = queue_helper(TASKQUEUE_PROJECT_ID, TASKQUEUE_TEST_QUEUE).all_payloads! 
     $stderr.puts actual_messages.inspect
 
     assert_logged( expected_messages.select { |msg| msg[:level] >= ::Logger::DEBUG }, 

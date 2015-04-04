@@ -1,6 +1,8 @@
 # Functional tests of TQ::App#run!
-# Please note that these require a deployed GAE app 's~ert-sas-queue-test' 
+# Please note that these require a deployed GAE app
 #   with two queues: 'test' and 'log'.
+# The GAE project_id is defined in ../config/secrets/test/project_id,
+#   along with other secrets files (see below).
 
 require_relative './helper'
 require_relative '../lib/app'
@@ -12,15 +14,29 @@ end
 class AppRunTests < Minitest::Spec
 
   # for installed app auth
-  CLIENT_SECRETS_FILE = File.expand_path('../config/secrets/test/client_secrets.json', File.dirname(__FILE__))
-  CREDENTIALS_FILE    = File.expand_path("../config/secrets/test/#{File.basename(__FILE__,'.rb')}-oauth2.json", File.dirname(__FILE__))
+  CLIENT_SECRETS_FILE = File.expand_path(
+    '../config/secrets/test/client_secrets.json', File.dirname(__FILE__)
+  )
+  CREDENTIALS_FILE    = File.expand_path(
+    "../config/secrets/test/#{File.basename(__FILE__,'.rb')}-oauth2.json", 
+    File.dirname(__FILE__)
+  )
 
   # for service account auth -- not quite working
-  SERVICE_ISSUER_FILE = File.expand_path('../config/secrets/test/issuer', File.dirname(__FILE__))
-  SERVICE_P12_FILE    = File.expand_path('../config/secrets/test/client.p12', File.dirname(__FILE__))
+  SERVICE_ISSUER_FILE = File.expand_path(
+    '../config/secrets/test/issuer', File.dirname(__FILE__)
+  )
+  SERVICE_P12_FILE    = File.expand_path(
+    '../config/secrets/test/client.p12', File.dirname(__FILE__)
+  )
 
   # task queue constants
+  TASKQUEUE_PROJECT_ID = File.read(
+    File.expand_path('../config/secrets/test/project_id', File.dirname(__FILE__))
+  ).chomp
+  
   TASKQUEUE_LEASE_SECS = 2
+
 
   def queue_helper(project,queue)
     TestUtils::QueueHelper.new(project,queue).auth_files(CLIENT_SECRETS_FILE, CREDENTIALS_FILE)
@@ -44,17 +60,17 @@ class AppRunTests < Minitest::Spec
   
     before do
       sleep TASKQUEUE_LEASE_SECS + 1  # to wait for lease expiry from previous test
-      clear_queue!('s~ert-sas-queue-test','test')
-      clear_queue!('s~ert-sas-queue-test','log')
+      clear_queue!(TASKQUEUE_PROJECT_ID,'test')
+      clear_queue!(TASKQUEUE_PROJECT_ID,'log')
     end
 
     it "should setup clearing the queue" do
-      cleared = clear_queue!('s~ert-sas-queue-test','test')
+      cleared = clear_queue!(TASKQUEUE_PROJECT_ID,'test')
       assert_equal 0, n = cleared.length,
          "Expected no tasks on queue, #{n < 2 ? 'was' : 'were'} #{n}"
 
       # unfortunately, queue peeks are horribly inaccurate right now.
-      # assert_equal 0, n = tasks_on_queue('s~ert-sas-queue-test','test').length,
+      # assert_equal 0, n = tasks_on_queue(TASKQUEUE_PROJECT_ID,'test').length,
       #   "Expected no tasks on queue, #{n < 2 ? 'was' : 'were'} #{n}"
     end
 
@@ -67,7 +83,7 @@ class AppRunTests < Minitest::Spec
         { 'What is your name?' => 'Galahad', 'What is your quest?' => 'To seek the grail', 'What is your favorite color?' => ['blue','yellow'] },
         { 'What is your name?' => 'Arthur', 'What is your quest?' => 'To seek the holy grail', 'What is the air-speed velocity of an unladen swallow?' => 'African or European swallow?' }
       ]
-      push_tasks!('s~ert-sas-queue-test','test', expected_tasks)
+      push_tasks!(TASKQUEUE_PROJECT_ID,'test', expected_tasks)
       
       # expectations
       mock_handler_class = MiniTest::Mock.new
@@ -95,7 +111,7 @@ class AppRunTests < Minitest::Spec
 
       # execution
       app = TQ::App.new('test_app/0.0.0', mock_handler_class)
-               .project('s~ert-sas-queue-test')
+               .project(TASKQUEUE_PROJECT_ID)
                .stdin({ name: 'test', num_tasks: expected_calls, lease_secs: TASKQUEUE_LEASE_SECS })
       app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
 
@@ -114,7 +130,7 @@ class AppRunTests < Minitest::Spec
       expected_tasks = [
         { 'What is your name?' => 'Sir Lancelot', 'What is your quest?' => 'To seek the holy grail', 'What is your favorite color?' => 'blue' }
       ]
-      push_tasks!('s~ert-sas-queue-test','test', expected_tasks)
+      push_tasks!(TASKQUEUE_PROJECT_ID,'test', expected_tasks)
  
       class DoNothingWorker
         def initialize(*args); end
@@ -123,15 +139,15 @@ class AppRunTests < Minitest::Spec
 
       # execution
       app = TQ::App.new('test_app/0.0.0', DoNothingWorker)
-               .project('s~ert-sas-queue-test')
+               .project(TASKQUEUE_PROJECT_ID)
                .stdin({ name: 'test', num_tasks: 1, lease_secs: TASKQUEUE_LEASE_SECS })
       app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
     
       sleep TASKQUEUE_LEASE_SECS + 1
-      actual_tasks = clear_queue!('s~ert-sas-queue-test','test')
+      actual_tasks = clear_queue!(TASKQUEUE_PROJECT_ID,'test')
 
       ## queue peeks are inaccurate right now...
-      # actual_tasks = tasks_on_queue('s~ert-sas-queue-test','test')
+      # actual_tasks = tasks_on_queue(TASKQUEUE_PROJECT_ID,'test')
       
       ## assertion
       assert_equal a = expected_tasks.length, b = actual_tasks.length, 
@@ -148,7 +164,7 @@ class AppRunTests < Minitest::Spec
       expected_tasks = [
         { 'What is your name?' => 'Sir Lancelot', 'What is your quest?' => 'To seek the holy grail', 'What is your favorite color?' => 'blue' }
       ]
-      push_tasks!('s~ert-sas-queue-test','test', expected_tasks)
+      push_tasks!(TASKQUEUE_PROJECT_ID,'test', expected_tasks)
  
       class RelayWorker
         def initialize(*args)
@@ -163,14 +179,14 @@ class AppRunTests < Minitest::Spec
 
       # execution
       app = TQ::App.new('test_app/0.0.0', RelayWorker)
-               .project('s~ert-sas-queue-test')
+               .project(TASKQUEUE_PROJECT_ID)
                .stdin({ name: 'test', num_tasks: 1, lease_secs: TASKQUEUE_LEASE_SECS })
                .stdout({ name: 'log' })
       app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
     
       sleep TASKQUEUE_LEASE_SECS + 1
-      actual_output_tasks = clear_queue!('s~ert-sas-queue-test','log')
-      actual_input_tasks = clear_queue!('s~ert-sas-queue-test','test')
+      actual_output_tasks = clear_queue!(TASKQUEUE_PROJECT_ID,'log')
+      actual_input_tasks = clear_queue!(TASKQUEUE_PROJECT_ID,'test')
       
       # assertion
 
@@ -190,7 +206,7 @@ class AppRunTests < Minitest::Spec
       expected_tasks = [
         { 'What is your name?' => 'Sir Lancelot', 'What is your quest?' => 'To seek the holy grail', 'What is your favorite color?' => 'blue' }
       ]
-      push_tasks!('s~ert-sas-queue-test','test', expected_tasks)
+      push_tasks!(TASKQUEUE_PROJECT_ID,'test', expected_tasks)
  
       class ExtendWorker
         def initialize(*args)
@@ -210,7 +226,7 @@ class AppRunTests < Minitest::Spec
 
       # execution
       app = TQ::App.new('test_app/0.0.0', ExtendWorker)
-               .project('s~ert-sas-queue-test')
+               .project(TASKQUEUE_PROJECT_ID)
                .stdin({ name: 'test', num_tasks: 1, lease_secs: TASKQUEUE_LEASE_SECS + 2 })
       app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
     

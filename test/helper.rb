@@ -1,7 +1,9 @@
+require 'fileutils'
+require 'logger'
+
 gem 'minitest'
 require 'minitest/autorun'
 
-require 'logger'
 require 'google/api_client'
 
 module TestUtils
@@ -9,6 +11,7 @@ module TestUtils
 
   def setup_logger(name="test")
     file = File.expand_path("log/#{name}.log", File.dirname(__FILE__)) 
+    FileUtils.mkdir_p( File.dirname(file) )
     logger = Logger.new( File.open(file, File::WRONLY | File::APPEND | File::CREAT ) )
     logger.level = Logger::DEBUG
     Google::APIClient.logger = logger
