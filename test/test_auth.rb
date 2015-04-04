@@ -1,6 +1,6 @@
 require 'fileutils'
 require_relative './helper'
-require_relative '../lib/app'
+require_relative '../lib/tq/app'
 
 def setup_logger!(name)
   TestUtils.setup_logger(name)

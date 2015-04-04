@@ -3,3 +3,4 @@ config/secrets
 .gs
 *.swp
 log
+*.gem

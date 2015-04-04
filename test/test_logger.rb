@@ -7,9 +7,9 @@
 require 'logger'
 
 require_relative './helper'
-require_relative '../lib/app'
-require_relative '../lib/queue'
-require_relative '../lib/logger'
+require_relative '../lib/tq/app'
+require_relative '../lib/tq/queue'
+require_relative '../lib/tq/logger'
 
 def setup_test_logger!
   TestUtils.setup_logger( File.basename(__FILE__,'.rb') )

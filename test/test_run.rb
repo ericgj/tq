@@ -5,7 +5,7 @@
 #   along with other secrets files (see below).
 
 require_relative './helper'
-require_relative '../lib/app'
+require_relative '../lib/tq/app'
 
 def setup_test_logger!
   TestUtils.setup_logger( File.basename(__FILE__,'.rb') )
