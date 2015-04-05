@@ -29,7 +29,7 @@ module TQ
       @log.add(severity, message, progname)
       @queue.push!( 
         queue_message(t, severity, message, progname, context), 
-        severity 
+        ::Logger::SEV_LABEL[severity].to_s.downcase
       ) if (severity >= level)
     end
 

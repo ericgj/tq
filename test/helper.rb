@@ -74,6 +74,17 @@ module TestUtils
       map! { |t| decode(t['payloadBase64']) }
     end
 
+    def all_tags!
+      map! { |t| t['tag'] }
+    end
+
+    def all_payloads_and_tags!
+      map! { |t| {:payload => decode(t['payloadBase64']),
+                  :tag => t['tag']
+                 }
+           }
+    end
+
     def map!(&b)
       clear!.map(&b) 
     end
