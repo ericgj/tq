@@ -3,7 +3,7 @@ module TQ
 
   class Queue
    
-    DEFAULT_OPTIONS = { :lease_secs => 60, :num_tasks => 1 }
+    DEFAULT_OPTIONS = { 'lease_secs' => 60, 'num_tasks' => 1 }
 
     attr_reader :client, :api
     def initialize(client, api, options={})
@@ -16,21 +16,21 @@ module TQ
     end
 
     def project(_)
-      options(project: _)
+      options({'project' => _})
     end
 
     def name(_)
-      options(name: _)
+      options({'name' => _})
     end
 
     def lease!(opts={})
       opts = @options.merge(opts)
       results = client.execute!(  
                   :api_method => api.tasks.lease,
-                  :parameters => { :leaseSecs => opts[:lease_secs], 
-                                   :project => opts[:project], 
-                                   :taskqueue => opts[:name], 
-                                   :numTasks => opts[:num_tasks]
+                  :parameters => { :leaseSecs => opts['lease_secs'], 
+                                   :project => opts['project'], 
+                                   :taskqueue => opts['name'], 
+                                   :numTasks => opts['num_tasks']
                                  }
                 )
       items = (results.data && results.data['items']) || []
@@ -39,13 +39,13 @@ module TQ
     
     # note: does not currently work; filed bug report https://code.google.com/p/googleappengine/issues/detail?id=11838
     def extend!(task, secs=nil)
-      secs = secs.nil? ? @options[:lease_secs] : secs
+      secs = secs.nil? ? @options['lease_secs'] : secs
       opts = @options
       results = client.execute!(
                   :api_method => api.tasks.update,
                   :parameters => { :newLeaseSeconds => secs, 
-                                   :project => opts[:project], 
-                                   :taskqueue => opts[:name], 
+                                   :project => opts['project'], 
+                                   :taskqueue => opts['name'], 
                                    :task => task.id
                                  }
                 )
@@ -54,15 +54,15 @@ module TQ
       
     def push!(payload, tag=nil)
       opts = @options
-      body = { :queueName => opts[:name],
-               :payloadBase64 => encode(payload)
+      body = { 'queueName'     => opts['name'],
+               'payloadBase64' => encode(payload)
              }
-      body[:tag] = tag if tag
+      body['tag'] = tag if tag
       
       results = client.execute!( 
                   :api_method => api.tasks.insert,
-                  :parameters => { :project   => opts[:project],
-                                   :taskqueue => opts[:name]
+                  :parameters => { :project   => opts['project'],
+                                   :taskqueue => opts['name']
                                  },
                   :body_object => body
                 )
@@ -73,8 +73,8 @@ module TQ
     def finish!(task)
       opts = @options
       client.execute!( :api_method => api.tasks.delete,
-                       :parameters => { :project   => opts[:project],
-                                        :taskqueue => opts[:name],
+                       :parameters => { :project   => opts['project'],
+                                        :taskqueue => opts['name'],
                                         :task      => task.id
                                       }
                     )

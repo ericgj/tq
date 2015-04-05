@@ -112,7 +112,7 @@ class AppRunTests < Minitest::Spec
       # execution
       app = TQ::App.new('test_app/0.0.0', mock_handler_class)
                .project(TASKQUEUE_PROJECT_ID)
-               .stdin({ name: 'test', num_tasks: expected_calls, lease_secs: TASKQUEUE_LEASE_SECS })
+               .stdin({ 'name' => 'test', 'num_tasks' => expected_calls, 'lease_secs' => TASKQUEUE_LEASE_SECS })
       app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
 
       # assertions
@@ -140,7 +140,7 @@ class AppRunTests < Minitest::Spec
       # execution
       app = TQ::App.new('test_app/0.0.0', DoNothingWorker)
                .project(TASKQUEUE_PROJECT_ID)
-               .stdin({ name: 'test', num_tasks: 1, lease_secs: TASKQUEUE_LEASE_SECS })
+               .stdin({ 'name' => 'test', 'num_tasks' => 1, 'lease_secs' => TASKQUEUE_LEASE_SECS })
       app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
     
       sleep TASKQUEUE_LEASE_SECS + 1
@@ -180,8 +180,8 @@ class AppRunTests < Minitest::Spec
       # execution
       app = TQ::App.new('test_app/0.0.0', RelayWorker)
                .project(TASKQUEUE_PROJECT_ID)
-               .stdin({ name: 'test', num_tasks: 1, lease_secs: TASKQUEUE_LEASE_SECS })
-               .stdout({ name: 'log' })
+               .stdin({ 'name' => 'test', 'num_tasks' => 1, 'lease_secs' => TASKQUEUE_LEASE_SECS })
+               .stdout({ 'name' => 'log' })
       app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
     
       sleep TASKQUEUE_LEASE_SECS + 1
@@ -227,7 +227,7 @@ class AppRunTests < Minitest::Spec
       # execution
       app = TQ::App.new('test_app/0.0.0', ExtendWorker)
                .project(TASKQUEUE_PROJECT_ID)
-               .stdin({ name: 'test', num_tasks: 1, lease_secs: TASKQUEUE_LEASE_SECS + 2 })
+               .stdin({ 'name' => 'test', 'num_tasks' => 1, 'lease_secs' => TASKQUEUE_LEASE_SECS + 2 })
       app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
     
     end

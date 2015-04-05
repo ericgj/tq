@@ -28,7 +28,7 @@ describe TQ::App do
     end
 
     it "should authorize without cached credentials" do
-      app = TQ::App.new('test_app/0.0.0')
+      app = TQ::App.new('test_app/0.0.0', nil)
       app.auth! CLIENT_SECRETS_FILE 
       assert true
     end
@@ -36,7 +36,7 @@ describe TQ::App do
     # Note: browser window should only appear once for this test
     # Not sure if it's possible to assert this
     it "should authorize with cached credentials not existing and existing" do
-      app = TQ::App.new('test_app/0.0.0')
+      app = TQ::App.new('test_app/0.0.0', nil)
       app.auth! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
       assert File.exists?(CREDENTIALS_FILE)
       app.auth! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
@@ -52,7 +52,7 @@ describe TQ::App do
     end
 
     it "should authorize service account" do
-      app = TQ::App.new('test_app/0.0.0')
+      app = TQ::App.new('test_app/0.0.0', nil)
       app.service_auth!(File.read(SERVICE_ISSUER_FILE).chomp, SERVICE_P12_FILE)
       assert true
     end

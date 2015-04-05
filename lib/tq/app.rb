@@ -12,7 +12,7 @@ TASKQUEUE_API_SCOPES = ['https://www.googleapis.com/auth/taskqueue']
 
 module TQ
 
-  DEFAULT_OPTIONS = { concurrency: 2, env: {} }
+  DEFAULT_OPTIONS = { 'concurrency' => 2, 'env' => {} }
 
   class App
     
@@ -26,30 +26,30 @@ module TQ
     end
 
     def project(_)
-      options(project: _)
+      options({'project' => _})
     end
       
     def env(_)
-      options(env: _)
+      options({'env' => _})
     end
       
     def stdin(_)
-      return stdin(name: _) if String === _ 
-      options(stdin: _)
+      return stdin({'name' => _}) if String === _ 
+      options({'stdin' => _})
     end
     
     def stdout(_)
-      return stdout(name: _) if String === _ 
-      options(stdout: _)
+      return stdout({'name' => _}) if String === _ 
+      options({'stdout' => _})
     end
     
     def stderr(_)
-      return stderr(name: _) if String === _ 
-      options(stderr: _)
+      return stderr({'name' => _}) if String === _ 
+      options({'stderr' => _})
     end
     
     def run!(secrets_file=nil, store_file=nil)
-      _run *(_queues( TQ::Queue.new( *(auth!(secrets_file, store_file)) ).project(@options[:project]) ) )
+      _run *(_queues( TQ::Queue.new( *(auth!(secrets_file, store_file)) ).project(@options['project']) ) )
     end
 
 
@@ -110,9 +110,9 @@ module TQ
     end
     
     def _queues(q)
-      qin  = @options[:stdin]  && q.options(@options[:stdin])
-      qout = @options[:stdout] && q.options(@options[:stdout])
-      qerr = @options[:stderr] && q.options(@options[:stderr])
+      qin  = @options['stdin']  && q.options(@options['stdin'])
+      qout = @options['stdout'] && q.options(@options['stdout'])
+      qerr = @options['stderr'] && q.options(@options['stderr'])
       return qin, qout, qerr
     end 
    
@@ -120,8 +120,8 @@ module TQ
     # TODO raise if not qin
     def _run(qin, qout, qerr)
       tasks = qin.lease!
-      Parallel.each(tasks, :in_threads => @options[:concurrency]) do |task| 
-        @worker.new(qin, qout, qerr, @options[:env]).call(task)
+      Parallel.each(tasks, :in_threads => @options['concurrency']) do |task| 
+        @worker.new(qin, qout, qerr, @options['env']).call(task)
       end
     end
 

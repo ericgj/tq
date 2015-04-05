@@ -6,16 +6,14 @@ module TQ
   class Logger
     
     DEFAULT_OPTIONS = { 
-      log: {
-        file: $stderr,
-        level: ::Logger::WARN
-      }
+      'file'  =>  $stderr,
+      'level' =>  ::Logger::WARN
     }
 
     def initialize(queue, options={})
       @queue = queue
       options = DEFAULT_OPTIONS.merge(options)
-      @log = build_log(options[:log])
+      @log = build_log(options)
     end
 
     def level
@@ -47,8 +45,8 @@ module TQ
 
     def build_log(options)
       return options if options.respond_to?(:log)
-      logger = ::Logger.new(options[:file], options[:shift_age], options[:shift_size])
-      logger.level = options[:level] if options[:level]
+      logger = ::Logger.new(options['file'], options['shift_age'], options['shift_size'])
+      logger.level = options['level'] if options['level']
       return logger
     end
 
