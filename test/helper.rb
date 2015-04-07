@@ -12,9 +12,13 @@ module TestUtils
   def setup_logger(name="test")
     file = File.expand_path("log/#{name}.log", File.dirname(__FILE__)) 
     FileUtils.mkdir_p( File.dirname(file) )
-    logger = Logger.new( File.open(file, File::WRONLY | File::APPEND | File::CREAT ) )
-    logger.level = Logger::DEBUG
+    logger = Logger.new( File.open(file, 'w' ) )
+    logger.level = ENV['DEBUG'] ? Logger::DEBUG : Logger::INFO
     Google::APIClient.logger = logger
+  end
+
+  def current_logger
+    Google::APIClient.logger
   end
 
   class QueueHelper

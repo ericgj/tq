@@ -12,10 +12,17 @@ TASKQUEUE_API_SCOPES = ['https://www.googleapis.com/auth/taskqueue']
 
 module TQ
 
-  DEFAULT_OPTIONS = { 'concurrency' => 2, 'env' => {} }
+  DEFAULT_OPTIONS = { 
+    'concurrency' => 2, 
+    'log' => {
+      'file' => $stderr
+    },
+    'env' => {} 
+  }
 
   class App
     
+    attr_reader :id, :worker
     def initialize(id, worker, options={})
       @id = id; @worker = worker  
       @options = DEFAULT_OPTIONS.merge(options)
@@ -29,8 +36,16 @@ module TQ
       options({'project' => _})
     end
       
+    def log(_)
+      options({'log' => @options['log'].merge(_)})
+    end
+
+    def logger(_)
+      options({'logger' => _})
+    end
+
     def env(_)
-      options({'env' => _})
+      options({'env' => @options['env'].merge(_)})
     end
       
     def stdin(_)
@@ -49,6 +64,7 @@ module TQ
     end
     
     def run!(secrets_file=nil, store_file=nil)
+      setup_logger!
       _run *(_queues( TQ::Queue.new( *(auth!(secrets_file, store_file)) ).project(@options['project']) ) )
     end
 
@@ -98,6 +114,19 @@ module TQ
     
     private
     
+    def setup_logger!
+      if logger = @options['logger']
+      else
+        if log = @options['log'] && file = log['file'] 
+          logger = Logger.new(file)
+          if level = log['level']
+            logger.level = level
+          end
+        end
+      end
+      (Google::APIClient.logger = logger) if logger
+    end
+
     def client
       @client ||= Google::APIClient.new(
                     :application_name => application_name,
@@ -121,8 +150,16 @@ module TQ
     def _run(qin, qout, qerr)
       tasks = qin.lease!
       Parallel.each(tasks, :in_threads => @options['concurrency']) do |task| 
-        @worker.new(qin, qout, qerr, @options['env']).call(task)
+        @worker.new(qin, qout, qerr, inherited_env).call(task)
       end
+    end
+
+    # default log/logger options into env
+    def inherited_env
+      env = @options['env']
+      log = @options['log']
+      logger = @options['logger']
+      {'log' => log, 'logger' => logger}.merge(env)
     end
 
   end
