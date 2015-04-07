@@ -71,7 +71,7 @@ class LoggerTests < Minitest::Spec
 
   def send_messages_to!(logger, msgs)
     msgs.each do |msg|
-      logger.__send__(msg[:method], msg[:message], msg[:progname], msg[:context])
+      logger.__send__(msg[:method], msg[:progname], msg[:context]) { msg[:message] }
     end
   end
 

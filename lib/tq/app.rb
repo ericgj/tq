@@ -117,7 +117,7 @@ module TQ
     def setup_logger!
       if logger = @options['logger']
       else
-        if log = @options['log'] && file = log['file'] 
+        if (log = @options['log']) && (file = log['file'])
           logger = Logger.new(file)
           if level = log['level']
             logger.level = level
