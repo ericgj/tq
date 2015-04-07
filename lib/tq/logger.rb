@@ -12,8 +12,11 @@ module TQ
 
     def initialize(queue, options={})
       @queue = queue
-      options = DEFAULT_OPTIONS.merge(options)
-      @log = build_log(options)
+      if Hash === options
+        @log = build_log( DEFAULT_OPTIONS.merge(options) )
+      else
+        @log = options
+      end
     end
 
     def level

@@ -34,6 +34,10 @@ class LoggerTests < Minitest::Spec
   
   TASKQUEUE_TEST_QUEUE = 'log'
 
+  def test_logger
+    @test_logger ||=  TestUtils.current_logger
+  end
+
   def assert_logged( exps, acts )
     errs = []
     unless (a = exps.length) == (b = acts.length)
@@ -156,6 +160,22 @@ class LoggerTests < Minitest::Spec
     send_messages_to!(subject, expected_messages)
 
     verify_logged_messages_to_level! expected_messages, ::Logger::DEBUG
+
+  end
+
+  it 'when setting external logger, logger should log to queue at logger\'s level' do
+    subject = TQ::Logger.new(@queue, test_logger )
+
+    expected_messages = [
+      { method: :debug, level: ::Logger::DEBUG, message: 'debug message', progname: 'prog1', context: { key: 1 } },
+      { method: :info,  level: ::Logger::INFO,  message: 'info message',  progname: 'prog2', context: { key: 2 } },
+      { method: :warn,  level: ::Logger::WARN,  message: 'warn message',  progname: 'prog3', context: { key: 3 } },
+      { method: :error,  level: ::Logger::ERROR,  message: 'error message',  progname: 'prog4', context: { key: 4 } }
+    ]
+
+    send_messages_to!(subject, expected_messages)
+
+    verify_logged_messages_to_level! expected_messages, test_logger.level
 
   end
 
