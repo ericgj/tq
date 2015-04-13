@@ -74,7 +74,7 @@ module TQ
       client.authorization = Signet::OAuth2::Client.new(
         :token_credential_uri => 'https://accounts.google.com/o/oauth2/token',
         :audience => 'https://accounts.google.com/o/oauth2/token',
-        :scope => 'https://www.googleapis.com/auth/prediction',
+        :scope => TASKQUEUE_API_SCOPES,
         :issuer => issuer,
         :signing_key => key)
       client.authorization.fetch_access_token!
