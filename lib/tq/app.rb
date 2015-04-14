@@ -63,12 +63,17 @@ module TQ
       options({'stderr' => _})
     end
     
+    def service_run!(issuer, p12_file)
+      setup_logger!
+      _run *(_queues( TQ::Queue.new( *(service_auth!(issuer, p12_file)) ).project(@options['project']) ) )
+    end
+
     def run!(secrets_file=nil, store_file=nil)
       setup_logger!
       _run *(_queues( TQ::Queue.new( *(auth!(secrets_file, store_file)) ).project(@options['project']) ) )
     end
 
-
+    # Note issuer is not a file name but the service account email address
     def service_auth!(issuer, p12_file)
       key = Google::APIClient::KeyUtils.load_from_pkcs12(p12_file, 'notasecret')
       client.authorization = Signet::OAuth2::Client.new(

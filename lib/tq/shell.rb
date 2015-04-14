@@ -8,8 +8,6 @@ module TQ
   
     DEFAULT_OPTIONS = {
       app: {},
-      auth_secrets_file: './tq-client.json',
-      auth_store_file:   './tq-client-store.json',
       config_file:       './tq-app.json'
     }
 
@@ -33,12 +31,24 @@ module TQ
 
       @logger.info(progname) { "Configuring #{@app.id}" } if @logger
       opts = parse_args(argv)
-      @logger.debug(progname) { "Configuration: #{opts[:app].inspect}" } if @logger
+      @logger.debug(progname) { "Configuration: #{opts.inspect}" } if @logger
 
-      @app = @app.options( opts[:app] ).logger(@logger)
+      @app = @app.options( opts[:app] )
+      @app = @app.logger(@logger) if @logger
 
       @logger.info(progname) { "Running #{@app.id} using worker #{@app.worker}" } if @logger
-      @app.run!( opts[:auth_secrets_file], opts[:auth_store_file] )
+
+      secrets, store = opts[:auth_secrets_file],        opts[:auth_store_file] 
+      issuer, p12    = opts[:service_auth_issuer_file], opts[:service_auth_p12_file]
+
+      if secrets
+        @app.run!(secrets, store)
+      elsif issuer && p12
+        @app.service_run!(File.read(issuer).chomp, p12)
+      else
+        raise ArgumentError, "You must provide either OAuth2 secrets and credentials store, " +
+                             "or service-account issuer and p12 files."
+      end
 
     end
 
@@ -58,8 +68,16 @@ module TQ
           opts[:auth_secrets_file] = given
         end
 
-        shell.on('-s', '--auth-store [FILE]', "Google OAuth2 storage file") do |given|
+        shell.on('-s', '--auth-store [FILE]', "Google OAuth2 credentials storage file") do |given|
           opts[:auth_store_file] = given
+        end
+
+        shell.on('-i', '--service-auth-issuer [FILE]', "Google service account issuer file") do |given|
+          opts[:service_auth_issuer_file] = given
+        end
+
+        shell.on('-p', '--service-auth-p12 [FILE]', "Google service account p12 file") do |given|
+          opts[:service_auth_p12_file] = given
         end
 
         shell.on('-c', '--config [FILE]', "Application config file (json)") do |given|

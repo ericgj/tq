@@ -8,7 +8,6 @@ end
 
 class ShellTests < Minitest::Spec
 
-  include 
   # for installed app auth
   CLIENT_SECRETS_FILE = File.expand_path(
     '../config/secrets/test/client_secrets.json', File.dirname(__FILE__)
@@ -17,6 +16,9 @@ class ShellTests < Minitest::Spec
     "../config/secrets/test/#{File.basename(__FILE__,'.rb')}-oauth2.json", 
     File.dirname(__FILE__)
   )
+
+  SERVICE_ISSUER_FILE = File.expand_path('../config/secrets/test/issuer', File.dirname(__FILE__))
+  SERVICE_P12_FILE    = File.expand_path('../config/secrets/test/client.p12', File.dirname(__FILE__))
 
   # task queue constants
   TASKQUEUE_APP_CONFIG = 
@@ -91,6 +93,13 @@ class ShellTests < Minitest::Spec
     ]
   end
 
+  def shell_args_service
+    [ "--service-auth-issuer", SERVICE_ISSUER_FILE,
+      "--service-auth-p12", SERVICE_P12_FILE,
+      "--config", TASKQUEUE_APP_CONFIG
+    ]
+  end
+
   def setup 
     sleep TASKQUEUE_LEASE_SECS+1 
     clear_queue!
@@ -116,6 +125,30 @@ class ShellTests < Minitest::Spec
     populate_queue! exps
     
     TQ::Shell.new(@app, logger).call( shell_args )
+
+    assert_tasks_on_queue(exps.length - app_stdin_num_tasks)
+
+  end
+ 
+  it 'should execute using service auth' do
+    exps = [
+        { 'What is your name?' => 'Sir Lancelot', 
+          'What is your quest?' => 'To seek the holy grail', 
+          'What is your favorite color?' => 'blue' },
+        { 'What is your name?' => 'Sir Robin', 
+          'What is your quest?' => 'To seek the holy grail', 
+          'What is the capital of Assyria?' => nil },
+        { 'What is your name?' => 'Galahad', 
+          'What is your quest?' => 'To seek the grail', 
+          'What is your favorite color?' => ['blue','yellow'] },
+        { 'What is your name?' => 'Arthur', 
+          'What is your quest?' => 'To seek the holy grail', 
+          'What is the air-speed velocity of an unladen swallow?' => 'African or European swallow?' }
+    ]
+
+    populate_queue! exps
+    
+    TQ::Shell.new(@app, logger).call( shell_args_service )
 
     assert_tasks_on_queue(exps.length - app_stdin_num_tasks)
 
