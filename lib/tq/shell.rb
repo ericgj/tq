@@ -29,9 +29,8 @@ module TQ
       
       progname = File.basename(__FILE__,'.rb')
 
-      @logger.info(progname) { "Configuring #{@app.id}" } if @logger
       opts = parse_args(argv)
-      @logger.debug(progname) { "Configuration: #{opts.inspect}" } if @logger
+      @logger.debug(progname) { "Configuration for #{@app.id}: #{opts.inspect}" } if @logger
 
       @app = @app.options( opts[:app] )
       @app = @app.logger(@logger) if @logger
@@ -49,6 +48,8 @@ module TQ
         raise ArgumentError, "You must provide either OAuth2 secrets and credentials store, " +
                              "or service-account issuer and p12 files."
       end
+
+      @logger.info(progname) { "Completed #{@app.id}" } if @logger
 
     end
 
