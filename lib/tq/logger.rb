@@ -36,10 +36,13 @@ module TQ
     end
 
     def add(severity, message=nil, progname=nil, context=nil, &block)
-      t = Time.now       
-      @log.add(severity, message, progname, &block)
+      t = Time.now
+      severity, message, data, context = 
+        normalize_params(severity, message, progname, context, &block)
+
+      @log.add(severity, message, data[:progname])
       @queue.push!( 
-        queue_message(t, severity, message, progname, context, &block), 
+        queue_message(t, severity, message, data, context), 
         ::Logger::SEV_LABEL[severity].to_s.downcase
       ) if (severity >= level)
     end
@@ -64,7 +67,7 @@ module TQ
 
     # damn, the ruby logger interface is weird... this logic is copied almost verbatim
     # from ::Logger.add
-    def queue_message(t, severity, message, progname, context, &block)
+    def normalize_params(severity, message, progname, context, &block)
       severity ||= ::Logger::UNKNOWN
       progname ||= self.progname
       if message.nil?
@@ -75,16 +78,27 @@ module TQ
           progname = self.progname
         end
       end
+    
+      # for case where progname is passed as hash
+      data = {}
+      if progname.respond_to?(:has_key?) && progname.respond_to?(:merge)
+        data = {progname: self.progname}.merge(progname)
+      else
+        data = {progname: progname}
+      end
 
-      return {
+      return [severity, message, data, context]
+    end
+
+    def queue_message(t, severity, message, data={}, context={})
+      return data.merge({
         time: t.iso8601,
         timestamp: t.to_i,
         level: severity,
         label: ::Logger::SEV_LABEL[severity],
         message: message,
-        progname: progname,
         context: context
-      }
+      })
     end
 
   end

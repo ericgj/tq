@@ -46,14 +46,21 @@ class LoggerTests < Minitest::Spec
     exps.each_with_index do |exp,i|
       act = acts[i]
       next if act.nil?
-      [:level, :message, :progname].each do |elem|
+      [:level, :message].each do |elem|
         unless (a = exp[elem]) == (b = act[elem.to_s])
           errs.push( "[#{i}] Expected #{elem} to be #{a}, was #{b}" )
         end
       end
+ 
+      a = (Hash === exp[:progname] ? exp[:progname][:progname] : exp[:progname])
+      unless a == (b = act['progname'])
+        errs.push( "[#{i}] Expected #{elem} to be #{a}, was #{b}" )
+      end
+
       unless (a = ::Logger::SEV_LABEL[exp[:level]]) == (b = act['label'])
         errs.push( "[#{i}] Expected label to be #{a}, was #{b}" )
       end
+
     end
     assert errs.length == 0, errs.join("\n")
   end
@@ -171,6 +178,49 @@ class LoggerTests < Minitest::Spec
       { method: :info,  level: ::Logger::INFO,  message: 'info message',  progname: 'prog2', context: { key: 2 } },
       { method: :warn,  level: ::Logger::WARN,  message: 'warn message',  progname: 'prog3', context: { key: 3 } },
       { method: :error,  level: ::Logger::ERROR,  message: 'error message',  progname: 'prog4', context: { key: 4 } }
+    ]
+
+    send_messages_to!(subject, expected_messages)
+
+    verify_logged_messages_to_level! expected_messages, test_logger.level
+
+  end
+
+  it 'log methods should accept hash of values as first parameter' do
+    subject = TQ::Logger.new(@queue, test_logger )
+
+    expected_messages = [
+      { method: :debug, 
+        level: ::Logger::DEBUG,
+        progname: { 
+           progname: 'prog1', id: '1234'
+        },
+        message: 'debug message', 
+        context: { key: 1 } 
+      },
+      { method: :info,  
+        level: ::Logger::INFO, 
+        progname: {
+           id: '2345', progname: 'prog2'
+        },
+        message: 'info message',  
+        context: { key: 2 } 
+      },
+      { method: :warn,  
+        message: 'warn message',
+        level: ::Logger::WARN, 
+        progname: {
+          id: '3456',  progname: 'prog3'
+        }
+      },
+      { method: :error,  
+        message: 'error message',
+        level: ::Logger::ERROR, 
+        progname: {
+          progname: 'prog4', id: '4567'
+        },
+        context: { key: 4 } 
+      }
     ]
 
     send_messages_to!(subject, expected_messages)
