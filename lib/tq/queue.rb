@@ -5,7 +5,11 @@ module TQ
 
   class Queue
    
-    DEFAULT_OPTIONS = { 'lease_secs' => 60, 'num_tasks' => 1 }
+    DEFAULT_OPTIONS = { 
+      'lease_secs' => 60, 
+      'num_tasks' => 1, 
+      'max_tries' => -1 
+    }
 
     attr_reader :client, :api
     def initialize(client, api, options={})
@@ -23,6 +27,10 @@ module TQ
 
     def name(_)
       options({'name' => _})
+    end
+
+    def option(key)
+      @options[key]
     end
 
     def lease!(opts={})
@@ -86,7 +94,15 @@ module TQ
     private
     
     def new_task(t)
-      Task.new(self, t['id'], timestamp_time(t['leaseTimestamp']), decode(t.payloadBase64), t) 
+      Task.new(
+        self, 
+        t['id'], 
+        timestamp_time(t['leaseTimestamp']),
+        t['retry_count'],
+        t['tag'],
+        decode(t.payloadBase64), 
+        t
+      ) 
     end
 
     def timestamp_time(t)
@@ -103,7 +119,7 @@ module TQ
     
   end
 
-  class Task < Struct.new(:queue, :id, :expires, :payload, :raw)
+  class Task < Struct.new(:queue, :id, :expires, :tries, :tag, :payload, :raw)
     
     def initialize(*args)
       super
@@ -132,6 +148,11 @@ module TQ
 
     def lease_expired?
       self.expires < @clock.now
+    end
+
+    def try?
+      max = self.queue.option('max_tries')
+      return (max == -1 or self.tries < max)
     end
 
   end

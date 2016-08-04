@@ -39,7 +39,7 @@ class AppRunTests < Minitest::Spec
 
 
   def queue_helper(project,queue)
-    TestUtils::QueueHelper.new(project,queue).auth_files(CLIENT_SECRETS_FILE, CREDENTIALS_FILE)
+    TestUtils::QueueHelper.new(project,queue).service_auth_files(SERVICE_ISSUER_FILE, SERVICE_P12_FILE)
   end
 
   def tasks_on_queue(project,queue)
@@ -53,6 +53,10 @@ class AppRunTests < Minitest::Spec
   def push_tasks!(project,queue,tasks)
     q = queue_helper(project,queue)
     tasks.each do |task| q.push!(task) end
+  end
+ 
+  def service_run!(app)
+    app.service_run! File.read(SERVICE_ISSUER_FILE).chomp, SERVICE_P12_FILE
   end
 
 
@@ -113,7 +117,8 @@ class AppRunTests < Minitest::Spec
       app = TQ::App.new('test_app/0.0.0', mock_handler_class)
                .project(TASKQUEUE_PROJECT_ID)
                .stdin({ 'name' => 'test', 'num_tasks' => expected_calls, 'lease_secs' => TASKQUEUE_LEASE_SECS })
-      app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
+      # app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
+      service_run! app
 
       # assertions
       assert_equal expected_calls, actual_calls,
@@ -141,8 +146,9 @@ class AppRunTests < Minitest::Spec
       app = TQ::App.new('test_app/0.0.0', DoNothingWorker)
                .project(TASKQUEUE_PROJECT_ID)
                .stdin({ 'name' => 'test', 'num_tasks' => 1, 'lease_secs' => TASKQUEUE_LEASE_SECS })
-      app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
-    
+      # app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
+      service_run! app
+
       sleep TASKQUEUE_LEASE_SECS + 1
       actual_tasks = clear_queue!(TASKQUEUE_PROJECT_ID,'test')
 
@@ -182,7 +188,8 @@ class AppRunTests < Minitest::Spec
                .project(TASKQUEUE_PROJECT_ID)
                .stdin({ 'name' => 'test', 'num_tasks' => 1, 'lease_secs' => TASKQUEUE_LEASE_SECS })
                .stdout({ 'name' => 'log' })
-      app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
+      # app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
+      service_run! app
     
       sleep TASKQUEUE_LEASE_SECS + 1
       actual_output_tasks = clear_queue!(TASKQUEUE_PROJECT_ID,'log')
@@ -228,9 +235,118 @@ class AppRunTests < Minitest::Spec
       app = TQ::App.new('test_app/0.0.0', ExtendWorker)
                .project(TASKQUEUE_PROJECT_ID)
                .stdin({ 'name' => 'test', 'num_tasks' => 1, 'lease_secs' => TASKQUEUE_LEASE_SECS + 2 })
-      app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
+      # app.run! CLIENT_SECRETS_FILE, CREDENTIALS_FILE
+      service_run! app
     
     end
+
+    it 'should retry tasks indefinitely by default' do
+
+      # setup
+      expected_tasks = [
+        { 'What is your name?' => 'Sir Lancelot', 'What is your quest?' => 'To seek the holy grail', 'What is your favorite color?' => 'blue' }
+      ]
+      push_tasks!(TASKQUEUE_PROJECT_ID,'test', expected_tasks)
+
+      # expectations
+      mock_handler_class = MiniTest::Mock.new
+      mock_handler = MiniTest::Mock.new
+
+      ## expect constructor receives task queue as first param 
+      expected_calls = 3
+      (0...expected_calls).each do
+        mock_handler_class.expect(:new, mock_handler) do |*args|
+          args.first.respond_to?('finish!')  
+        end
+      end
+
+      ## expect :call for each queued task up to expected_calls
+      actual_calls = 0 
+      (0...expected_calls).each do 
+        mock_handler.expect(:call, true) do |actual_task|
+          actual_calls += 1
+        end
+      end
+
+      # execution
+      app = TQ::App.new('test_app/0.0.0', mock_handler_class)
+               .project(TASKQUEUE_PROJECT_ID)
+               .stdin({ 'name' => 'test', 
+                        'num_tasks' => 1, 
+                        'lease_secs' => TASKQUEUE_LEASE_SECS
+                      })
+               .stdout({ 'name' => 'log' })
+      
+      service_run! app
+      sleep TASKQUEUE_LEASE_SECS + 1
+      service_run! app
+      sleep TASKQUEUE_LEASE_SECS + 1
+      service_run! app
+
+      # assertion
+
+      assert_equal expected_calls, actual_calls,
+        "Expected #{expected_calls} worker calls, was #{actual_calls}"
+
+      mock_handler_class.verify
+      mock_handler.verify
+
+    end
+
+    it 'should only run if current task retry count is less than queue max_tries' do
+
+      # setup
+      expected_tasks = [
+        { 'What is your name?' => 'Sir Lancelot', 'What is your quest?' => 'To seek the holy grail', 'What is your favorite color?' => 'blue' }
+      ]
+      push_tasks!(TASKQUEUE_PROJECT_ID,'test', expected_tasks)
+
+      # expectations
+      mock_handler_class = MiniTest::Mock.new
+      mock_handler = MiniTest::Mock.new
+
+      ## expect constructor receives task queue as first param 
+      max_tries = 2
+      expected_calls = max_tries
+      (0...expected_calls).each do
+        mock_handler_class.expect(:new, mock_handler) do |*args|
+          args.first.respond_to?('finish!')  
+        end
+      end
+
+      ## expect :call for each queued task up to expected_calls
+      actual_calls = 0 
+      (0...max_tries).each do 
+        mock_handler.expect(:call, true) do |actual_task|
+          actual_calls += 1
+        end
+      end
+
+      # execution
+      app = TQ::App.new('test_app/0.0.0', mock_handler_class)
+               .project(TASKQUEUE_PROJECT_ID)
+               .stdin({ 'name' => 'test', 
+                        'num_tasks' => 1, 
+                        'lease_secs' => TASKQUEUE_LEASE_SECS,
+                        'max_tries' => max_tries
+                      })
+               .stdout({ 'name' => 'log' })
+      
+      service_run! app
+      sleep TASKQUEUE_LEASE_SECS + 1
+      service_run! app
+      sleep TASKQUEUE_LEASE_SECS + 1
+      service_run! app
+
+      # assertion
+      assert_equal expected_calls, actual_calls,
+        "Expected #{expected_calls} worker calls, was #{actual_calls}"
+
+      mock_handler_class.verify
+      mock_handler.verify
+
+    end
+
 
   end
 

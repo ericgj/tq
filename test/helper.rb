@@ -26,18 +26,33 @@ module TestUtils
     attr_reader :project, :queue
     def initialize(project,queue)
       @project, @queue = project, queue
+      @service_auth = false
     end
 
     def auth_files(secrets,creds)
       @secrets_file, @creds_file = secrets, creds
+      @service_auth = false
+      return self
+    end
+    
+    def service_auth_files(issuer,p12)
+      @secrets_issuer, @secrets_p12 = issuer, p12
+      @service_auth = true
       return self
     end
 
     def authorized_client
-      # @authorized_client ||= TQ::App.new('test_app',nil).service_auth!(File.read(SERVICE_ISSUER_FILE).chomp, SERVICE_P12_FILE)
-      @authorized_client ||= TQ::App.new('test_app',nil).auth!(@secrets_file, @creds_file)
+      @authorized_client ||= (
+        if @service_auth
+          TQ::App.new('test_app',nil).service_auth!(
+            File.read(@secrets_issuer).chomp, @secrets_p12
+          )
+        else
+          TQ::App.new('test_app',nil).auth!(@secrets_file, @creds_file)
+        end
+      )
     end
-    
+
     # Note: inaccurate, don't use
     def peek()
       client, api = authorized_client

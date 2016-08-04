@@ -155,7 +155,11 @@ module TQ
     def _run(qin, qout, qerr)
       tasks = qin.lease!
       Parallel.each(tasks, :in_threads => @options['concurrency']) do |task| 
-        @worker.new(qin, qout, qerr, inherited_env).call(task)
+        if task.try?
+          @worker.new(qin, qout, qerr, inherited_env).call(task)
+        else
+          qin.finish!(task)
+        end
       end
     end
 
