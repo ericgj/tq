@@ -9,8 +9,8 @@ Deps = ->{
 Gem::Specification.new do |s|
   s.name = 'tq'
   s.version = TQ::VERSION
-  s.summary = 'Ruby client for Google App Engine TaskQueue (REST API)'
-  s.description = 'Provides a simple framework for writing task worker processes'
+  s.summary = 'Ruby client for Google Cloud Tasks (REST API v2beta2)'
+  s.description = 'A simple framework for writing task worker processes'
   s.licenses = ['MIT']
   s.authors = ['Eric Gjertsen']
   s.email = 'ericgj72@gmail.com'

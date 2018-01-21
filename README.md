@@ -1,6 +1,8 @@
 # TQ
 
-Ruby client for Google App Engine TaskQueue (REST API)
+Ruby client for Google Cloud Tasks (REST API v2beta2)
 
-Provides a simple framework for writing task worker processes.
+(Formerly Google App Engine Task Queues)
+
+A simple framework for writing task worker processes.
 
