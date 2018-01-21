@@ -4,7 +4,9 @@ require 'logger'
 gem 'minitest'
 require 'minitest/autorun'
 
-require 'google/api_client'
+require 'googleauth'
+require 'google/apis'
+require 'google/apis/cloudtasks_v2beta2'
 
 module TestUtils
   extend self
@@ -14,122 +16,64 @@ module TestUtils
     FileUtils.mkdir_p( File.dirname(file) )
     logger = Logger.new( File.open(file, 'w' ) )
     logger.level = ENV['DEBUG'] ? Logger::DEBUG : Logger::INFO
-    Google::APIClient.logger = logger
+    Google::Apis.logger = logger
   end
 
   def current_logger
-    Google::APIClient.logger
+    Google::Apis.logger
   end
 
   class QueueHelper
 
-    attr_reader :project, :queue
-    def initialize(project,queue)
-      @project, @queue = project, queue
-      @service_auth = false
+    CloudTasks = Google::Apis::CloudtasksV2beta2
+
+    def initialize(spec, authfile)
+      @queue = spec
+      @authfile = authfile
     end
 
-    def auth_files(secrets,creds)
-      @secrets_file, @creds_file = secrets, creds
-      @service_auth = false
-      return self
-    end
-    
-    def service_auth_files(issuer,p12)
-      @secrets_issuer, @secrets_p12 = issuer, p12
-      @service_auth = true
-      return self
-    end
-
-    def authorized_client
-      @authorized_client ||= (
-        if @service_auth
-          TQ::App.new('test_app',nil).service_auth!(
-            File.read(@secrets_issuer).chomp, @secrets_p12
-          )
-        else
-          TQ::App.new('test_app',nil).auth!(@secrets_file, @creds_file)
-        end
+    def purge!
+      client = service_account_client
+      client.purge_queue(@queue.queue_name, 
+          CloudTasks::PurgeQueueRequest.new
       )
+      return
     end
 
-    # Note: inaccurate, don't use
-    def peek()
-      client, api = authorized_client
-      results = client.execute!( :api_method => api.tasks.list,
-                                 :parameters => { :project => project, :taskqueue => queue }
-                )
-      items = results.data['items'] || []
-    end
-
-    def push!(payload)
-      client, api = authorized_client
-      client.execute!( :api_method => api.tasks.insert,
-                       :parameters => { :project => project, :taskqueue => queue },
-                       :body_object => { 
-                         'queueName' => queue, 
-                         'payloadBase64' => encode(payload)
-                       }
-      )
-    end
-
-    def pop!(n=1)
-      client, api = authorized_client
-      results = client.execute!( :api_method => api.tasks.lease,
-                                 :parameters => { :project => project, :taskqueue => queue, 
-                                                  :leaseSecs => 60, :numTasks => n
-                                 }
-                )
-      items = results.data['items'] || []
-      items.each do |item|
-        client.execute!( :api_method => api.tasks.delete,
-                         :parameters => { :project => project, :taskqueue => queue, :task => item['id'] }
-        )
-      end
-      return items
-    end
-
-    def all_payloads!
-      map! { |t| decode(t['payloadBase64']) }
-    end
-
-    def all_tags!
-      map! { |t| t['tag'] }
-    end
-
-    def all_payloads_and_tags!
-      map! { |t| {:payload => decode(t['payloadBase64']),
-                  :tag => t['tag']
-                 }
-           }
-    end
-
-    def map!(&b)
-      clear!.map(&b) 
-    end
-
+    # Note: longer way to do it, but gets the count
     def clear!
-      client, api = authorized_client
-      done = false
-      all = []
-      while !done do
-        batch = pop!(10)
-        done = batch.empty? || batch.length < 10
-        all = all + batch
+      client = service_account_client
+      results = client.list_project_location_queue_tasks(@queue.queue_name)
+      tasks = (results.tasks || [])
+      tasks.each do |t|
+        client.delete_project_location_queue_task( t.name )
       end
-      all
+      return tasks
     end
 
-    def encode(obj)
-      Base64.urlsafe_encode64(JSON.dump(obj))
+    def push!(data)
+      client = service_account_client
+      q = TQ::Queue.new(client, @queue)
+      return q.push!(data)
     end
 
-    def decode(str)
-      JSON.load(Base64.urlsafe_decode64(str))
+    def service_account_client
+      creds = Google::Auth::ServiceAccountCredentials.make_creds(
+         :json_key_io => File.open(@authfile, 'r'),
+         :scope => TQ::API_SCOPES
+      )
+      creds.fetch_access_token!
+
+      client = CloudTasks::CloudTasksService.new
+      client.authorization = creds
+      client
+    end
+
+    def messages!
+      clear!.map {|t| t.pull_message }
     end
 
   end
-
 
 end
 

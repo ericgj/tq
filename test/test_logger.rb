@@ -7,8 +7,7 @@
 require 'logger'
 
 require_relative './helper'
-require_relative '../lib/tq/app'
-require_relative '../lib/tq/queue'
+require_relative '../lib/tq'
 require_relative '../lib/tq/logger'
 
 def setup_test_logger!
@@ -18,24 +17,42 @@ end
 
 class LoggerTests < Minitest::Spec
 
-  # for installed app auth
-  CLIENT_SECRETS_FILE = File.expand_path(
-    '../config/secrets/test/client_secrets.json', File.dirname(__FILE__)
-  )
-  CREDENTIALS_FILE    = File.expand_path(
-    "../config/secrets/test/#{File.basename(__FILE__,'.rb')}-oauth2.json", 
-    File.dirname(__FILE__)
+  # for service account auth 
+  SERVICE_ACCOUNT_FILE = File.expand_path(
+    '../config/secrets/test/service_account.json', File.dirname(__FILE__)
   )
 
   # task queue constants
-  TASKQUEUE_PROJECT_ID = File.read(
+  PROJECT_ID = File.read(
     File.expand_path('../config/secrets/test/project_id', File.dirname(__FILE__))
   ).chomp
-  
-  TASKQUEUE_TEST_QUEUE = 'log'
+
+  LOCATION = 'us-central1'
+  TASKQUEUE_LEASE_SECS = 2
+  TEST_QUEUE = 'log'
 
   def test_logger
     @test_logger ||=  TestUtils.current_logger
+  end
+
+  def queue_helper
+    TestUtils::QueueHelper.new(
+        TQ::QueueSpec.new( PROJECT_ID, LOCATION, TEST_QUEUE ),
+        SERVICE_ACCOUNT_FILE
+    )
+  end
+
+  def clear_queue!
+    queue_helper.clear!
+  end
+  
+  def queue_spec(max_tasks)
+    TQ::QueueSpec.new( PROJECT_ID, LOCATION, TEST_QUEUE, 
+                       max_tasks: max_tasks, lease_duration: "#{TASKQUEUE_LEASE_SECS}s")
+  end
+
+  def service_account_client
+    TQ::ServiceAccount.client(SERVICE_ACCOUNT_FILE)
   end
 
   def assert_logged( exps, acts )
@@ -86,26 +103,17 @@ class LoggerTests < Minitest::Spec
     end
   end
 
-  def queue_helper(project,queue)
-    TestUtils::QueueHelper.new(project,queue).auth_files(CLIENT_SECRETS_FILE, CREDENTIALS_FILE)
-  end
-
-  def clear_queue!(project,queue)
-    queue_helper(project,queue).clear!
-  end
-
   def verify_logged_messages_to_level!(expected_messages, minlevel)
-    actual_messages = queue_helper(TASKQUEUE_PROJECT_ID, TASKQUEUE_TEST_QUEUE).all_payloads_and_tags! 
-    $stderr.puts actual_messages.inspect
+    actual_messages = queue_helper.messages!  
 
     selected_messages = expected_messages.select { |msg| msg[:level] >= minlevel } 
 
     assert_logged( selected_messages,
-                   actual_messages.map { |msg| msg[:payload] }
+                   actual_messages.map { |m| JSON.load(m.payload) }
                  )
 
     assert_logged_tags( selected_messages,
-                        actual_messages.map { |msg| msg[:tag] }
+                        actual_messages.map { |m| m.tag }
                       )
   end
 
@@ -114,11 +122,8 @@ class LoggerTests < Minitest::Spec
   # you should just eyeball it in the $stderr output.
 
   def setup
-    clear_queue!(TASKQUEUE_PROJECT_ID, TASKQUEUE_TEST_QUEUE)
-    
-    app = TQ::App.new('test_app/0.0.0', nil)
-    @queue = TQ::Queue.new( *app.auth!(CLIENT_SECRETS_FILE, CREDENTIALS_FILE) )
-                      .options({ 'project' => TASKQUEUE_PROJECT_ID, 'name' => TASKQUEUE_TEST_QUEUE })
+    clear_queue!
+    @queue = TQ::Queue.new( service_account_client, queue_spec(1) )
   end
 
   it 'default logger should log to queue at warn level' do
