@@ -204,7 +204,7 @@ class AppRunTests < Minitest::Spec
           ttl2 = task.lease_remaining
           $stderr.puts "ExtendWorker - ttl before extend: #{ttl}"
           $stderr.puts "ExtendWorker - ttl after extend: #{ttl2}"
-          assert_in_delta( 2.5, ttl2, 0.07, 
+          assert_in_delta( 2.5, ttl2, 0.1, 
               "Expected to be approximately 2.5s"
           )
         end
