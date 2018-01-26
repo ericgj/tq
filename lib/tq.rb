@@ -13,14 +13,6 @@ module TQ
 
   API_SCOPES = ['https://www.googleapis.com/auth/cloud-tasks' ]  
   
-  module Utils
-
-    def options_including(keys, options)
-      options.select { |k,_| keys.include?(k) }
-    end
-
-  end
-
   class App
 
     attr_reader :worker, :queue_in, :queue_out, :queue_err, :logger, :concurrency, :env
@@ -92,14 +84,16 @@ module TQ
   end
 
   class QueueSpec
-    extend TQ::Utils
 
     def self.from_hash(data)
       return new( 
         data['project'], 
         data['location'], 
         data['name'],
-        **options_including(['lease_duration','max_tasks'], data)
+        **( { lease_duration: data['lease_duration'],
+              max_tasks: data['max_tasks']
+            }.reject {|k,v| v.nil?}
+          )
        )
     end
 
